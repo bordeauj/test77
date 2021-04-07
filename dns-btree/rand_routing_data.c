@@ -3,6 +3,7 @@
 #include <sys/mman.h>
 #include <sys/fcntl.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +14,7 @@
 static char speak_lvls = 1;
 
 #define set_speaking_off()           speak_lvls = 0
-#define set_speaking_level(levels)   speak_lvls = 1 | levels
+#define set_speaking_level(levels)   speak_lvls = 1 | (levels)
 
 #define debug_dump(level, str, structure) \
   if (speak_lvls & level) { \
@@ -81,6 +82,12 @@ typedef struct t_rout_btree {
   unsigned int       tree_root;
 } T_ROUT_BTREE_HNDL;
 
+typedef struct t_rout_data {
+  T_ROUT_BTREE_HNDL  *tree;
+  bool               load;
+  unsigned int       bytes;
+} T_ROUT_DATA;
+
 typedef struct t_rout_btree_step_ctx {
   T_ROUT_BTREE_NODE *base;
   int best_index;
@@ -110,7 +117,7 @@ typedef enum e_rout_update {
  *           +---^
  *
  */
-T_ROUT_BTREE_HNDL *rout_btree_init(unsigned int nnodes, bool b_load)
+T_ROUT_BTREE_HNDL *rout_btree_init(unsigned int nnodes, T_ROUT_DATA *p_rdata)
 {
   T_ROUT_BTREE_HNDL *p_tree;
   T_ROUT_CHUNK *p_chunk;
@@ -126,7 +133,7 @@ T_ROUT_BTREE_HNDL *rout_btree_init(unsigned int nnodes, bool b_load)
 
 
 #ifdef USE_MMAP
-  if (b_load)
+  if (p_rdata->load)
   {
     fd = open(MMAP_FILENAME, O_RDWR);
 
@@ -141,13 +148,14 @@ T_ROUT_BTREE_HNDL *rout_btree_init(unsigned int nnodes, bool b_load)
     size    = statbuf.st_size;
     protect = PROT_READ;
     flags   = MAP_SHARED;
+    p_rdata->bytes = size;
   }
   else
   {
     size = (nnodes + 1) * sizeof(T_ROUT_CHUNK);
   }
 
-  speakout(SPK_CALL, "rout_btree_init: load: %d, bytes: %d\n", b_load, size);
+  speakout(SPK_CALL, "rout_btree_init: load: %d, bytes: %d\n", p_rdata->load, size);
 
   p_tree = mmap(NULL, size, protect, flags, fd, 0 );
 
@@ -168,7 +176,7 @@ T_ROUT_BTREE_HNDL *rout_btree_init(unsigned int nnodes, bool b_load)
   }
 #endif
 
-  if (!b_load)
+  if (!p_rdata->load)
   {
     p_tree->first_free = p_tree->first_unused = 0;
     p_tree->tree_root  = INVALID_INDEX;
@@ -181,12 +189,15 @@ T_ROUT_BTREE_HNDL *rout_btree_init(unsigned int nnodes, bool b_load)
   }
 
   speakout(SPK_CALL, "rout_btree_init: p_tree: %p\n");
- 
+
+  p_rdata->tree = p_tree; 
   return p_tree;
 }
 
-void rout_btree_deinit(T_ROUT_BTREE_HNDL *p_tree, bool dump2file)
+void rout_btree_deinit(T_ROUT_DATA *rdata)
 {
+  T_ROUT_BTREE_HNDL *p_tree = rdata->tree;
+  bool dump2file = !rdata->load;
   size_t written;
   FILE *f1;
 
@@ -205,7 +216,7 @@ void rout_btree_deinit(T_ROUT_BTREE_HNDL *p_tree, bool dump2file)
   }
 
 #ifdef USE_MMAP
-  munmap(p_tree, (p_tree->nnodes + 1) * sizeof(T_ROUT_CHUNK));
+  munmap(p_tree, rdata->bytes);
 #else
   free(p_tree);
 #endif
@@ -640,6 +651,7 @@ void rout_btree_dump(T_ROUT_BTREE_HNDL *p_tree)
 
 int main (int argc, char *argv[])
 {
+  T_ROUT_DATA rdata;
   T_ROUT_BTREE_HNDL *p_tree;
   // From the task
   char *str4 = "25.8.129.14";
@@ -699,7 +711,8 @@ int main (int argc, char *argv[])
   // Init the tree
 
 #define TREE_SIZE 12800
-  p_tree = rout_btree_init(tree_size, !b_gen);
+  rdata.load = !b_gen;
+  p_tree = rout_btree_init(tree_size, &rdata);
 
   //rout_btree_dump(p_tree);
 
@@ -761,7 +774,7 @@ int main (int argc, char *argv[])
   }
 
   // de-init and dump to a file
-  rout_btree_deinit(p_tree, b_gen);
+  rout_btree_deinit(&rdata);
 
   return 0;
 }
