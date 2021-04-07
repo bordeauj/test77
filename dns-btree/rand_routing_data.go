@@ -12,7 +12,7 @@ import (
        "flag"
  )
 
-var gParam = flag.Int("g", 32, "Size of the generated tree.")
+var gParam = flag.Int("g", 32, "Amount of the generated routing data")
 
 const (
   IPv6nlen = 7
@@ -260,7 +260,7 @@ func main() {
   flag.Parse()
 
   count := *gParam
-  fmt.Printf("Number of the generated routing data: %d\n", count)
+  fmt.Printf("Amount of the generated routing data: %d\n", count)
   tree := RoutBtree{}
   tree.Init(uint32(count))
 
@@ -277,15 +277,15 @@ func main() {
 
   }
 
-  if (false) {
-    fmt.Printf("Tree.ctl: %p, %#v\n", &tree.ctl, tree.ctl)
+  if (true) {
+    //fmt.Printf("Tree.ctl: %p, %#v\n", &tree.ctl, tree.ctl)
     for r, h := range tree.nodes {
-      fmt.Printf("Tree.node[%d]: %#v\n", r, h)
+      fmt.Printf("\nTree.node[%d]: %#v", r, h)
     }
   }  
 
   tree.WriteToFile("file.mmap")
-  fmt.Println("\nHopefully all written to the file.\nBye.")
+  fmt.Println("\n\nHopefully all written to the file.\nBye.")
 
 }
 
